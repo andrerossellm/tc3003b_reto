@@ -14,7 +14,6 @@ struct imageMetadata
 
 void blur(unsigned short kernelSize, struct imageMetadata imageData)
 {
-    printf("Loco");
     // Usamos la ruta completa de la imagen original (con su directorio y nombre de archivo)
     char inputFilename[1028];
     strcpy(inputFilename, imageData.directory);
@@ -91,7 +90,7 @@ void blur(unsigned short kernelSize, struct imageMetadata imageData)
 int main(int argc, char *argv[])
 {
     char *filename = NULL;
-    int kernelSize = 31;
+    int kernelSize = 55;
     struct imageMetadata imageData;
 
     // Procesar los argumentos
@@ -105,7 +104,7 @@ int main(int argc, char *argv[])
 
     // Extraer el directorio y el nombre de la imagen
     char *tmp = strrchr(filename, '/');
-    printf("tmp: %s\n", tmp);
+    
     if (tmp)
     {
         strncpy(imageData.directory, filename, tmp - filename);
