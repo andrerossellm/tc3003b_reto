@@ -4,8 +4,8 @@
 int main()
 {
     FILE *image, *outputImage, *lecturas;
-    image = fopen("sample.bmp","rb");          //Imagen original a transformar
-    outputImage = fopen("img2_E.bmp","wb");    //Imagen transformada
+    image = fopen("image_proc/img/inv_1.bmp","rb");          //Imagen original a transformar
+    outputImage = fopen("chileee.bmp","wb");    //Imagen transformada
     long ancho;
     long alto;
     unsigned char r, g, b;               //Pixel
