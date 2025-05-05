@@ -2,3 +2,5 @@
 *.DS_Store
 *.vscode
 *.out
+totalLocalitiesScanned.txt
+.bmp
