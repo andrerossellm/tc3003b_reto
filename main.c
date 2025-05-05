@@ -65,16 +65,20 @@ int main() {
         }
 
         // Create output path
-        char gray_out[512], hmirror_out[512], vmirror_out[512], blur_out[512];
+        char gray_out[512], hmirror_out[512], vmirror_out[512], blur_out[512], gray_hmirror_out[512], gray_vmirror_out[512];
         snprintf(gray_out, sizeof(gray_out), "output/%s_gray.bmp", base_name);
         snprintf(hmirror_out, sizeof(hmirror_out), "output/%s_hmirror.bmp", base_name);
         snprintf(vmirror_out, sizeof(vmirror_out), "output/%s_vmirror.bmp", base_name);
+        snprintf(gray_vmirror_out, sizeof(gray_vmirror_out), "output/%s_gray_vmirror.bmp", base_name);
+        snprintf(gray_hmirror_out, sizeof(gray_hmirror_out), "output/%s_gray_hmirror.bmp", base_name);
         snprintf(blur_out, sizeof(blur_out), "output/%s_blur.bmp", base_name);
    
         // Call function to transform the image
         convertir_a_grises(&image, gray_out);
         crear_espejo_horizontal(&image, hmirror_out);
         crear_espejo_vertical(&image, vmirror_out);
+        convertir_grises_y_espejo_vertical(&image, gray_vmirror_out);
+        convertir_grises_y_espejo_horizontal(&image, gray_hmirror_out);
         blur(&image, 21, blur_out);
     
         free_image(&image);

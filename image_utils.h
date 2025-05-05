@@ -20,6 +20,8 @@ void free_image(Image *img);
 void convertir_a_grises(const Image *image, const char *outputPath);
 void crear_espejo_horizontal(const Image *image, const char *outputPath);
 void crear_espejo_vertical(const Image *image, const char *outputPath);
+void convertir_grises_y_espejo_horizontal(const Image *image, const char *outputPath);
+void convertir_grises_y_espejo_vertical(const Image *image, const char *outputPath);
 void blur(const Image *image, int kernelSize, const char *outputPath);
 
 #endif
