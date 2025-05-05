@@ -14,6 +14,7 @@ int main() {
     struct dirent* in_file;
     char* filenames[100];
     int file_count = 0;
+    int written_file_count = 0;
 
     // Open the directory
     FD = opendir(IMAGE_DIR);
@@ -76,12 +77,25 @@ int main() {
         crear_espejo_horizontal(&image, hmirror_out);
         crear_espejo_vertical(&image, vmirror_out);
         blur(&image, 21, blur_out);
+
+        written_file_count += 6;
     
         free_image(&image);
         printf("Thread %d: Processed %s\n", omp_get_thread_num(), filenames[i]);
         free(filenames[i]);
     }
-    
+
+    char *outputTxt = "totalLocalitiesScanned.txt";
+    FILE *fp = fopen(outputTxt, "w");
+    if (fp == NULL) {
+        printf("Error opening the file %s\n", outputTxt);
+        return -1;
+    }
+
+    fprintf(fp, "Total read localities: %d\n", file_count);
+    fprintf(fp, "Total written localities: %d\n", written_file_count);
+
+    fclose(fp); 
 
     const double STOP = omp_get_wtime();
     printf("Total time = %lf seconds\n", (STOP - ST));

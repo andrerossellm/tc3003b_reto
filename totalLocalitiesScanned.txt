@@ -1,0 +1,2 @@
+Total read localities: 3
+Total written localities: 18
