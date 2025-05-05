@@ -1,22 +1,44 @@
 #include "image_utils.h"
-#include <string.h>
+#include <stdio.h>
+#include <omp.h>
+
+#define NUM_THREADS 8
 
 int main() {
+    Image image;
+    if (!load_bmp("images/sample1.bmp", &image)) {
+        fprintf(stderr, "Error loading image\n");
+        return 1;
+    }
 
-    //convertir_a_grises("images/sample1.bmp", "img_gris.bmp");
-    struct imageMetadata imgData;
-    strcpy(imgData.directory, "images");
-    strcpy(imgData.name, "sample1.bmp");
-    imgData.width = 3840;
-    imgData.height = 2160;
-    imgData.imageSize = imgData.width * imgData.height * 3;
+    const double ST = omp_get_wtime();
+    omp_set_num_threads(NUM_THREADS);
 
-    blur(21, imgData); 
+    #pragma omp parallel
+    {
+        #pragma omp sections
+        {
+            #pragma omp section
+                convertir_a_grises(&image, "img_gray.bmp");
 
-    // crear_espejo_horizontal("images/sample1.bmp", "img_espejo_h.bmp");
-    // crear_espejo_vertical("images/sample1.bmp", "img_espejo_v.bmp");
+            #pragma omp section
+                crear_espejo_horizontal(&image, "img_espejo_h.bmp");
 
+            #pragma omp section
+                crear_espejo_vertical(&image, "img_espejo_v.bmp");
 
+            #pragma omp section
+                blur(&image, 21, "img_blur.bmp");
+
+            #pragma omp section
+                blur(&image, 21, "img_blur.bmp");
+        }
+    }
+    // blur(&image, 21, "img_blur.bmp");
+    // blur(&image, 21, "img_blur.bmp");
+    const double STOP = omp_get_wtime();
+    printf("Tiempo = %lf \n", (STOP - ST));
+
+    free_image(&image);
     return 0;
-
 }
