@@ -1,2 +1,3 @@
 Total read localities: 3
 Total written localities: 18
+Total MIPS: 1080

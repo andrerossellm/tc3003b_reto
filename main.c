@@ -94,6 +94,7 @@ int main() {
 
     fprintf(fp, "Total read localities: %d\n", file_count);
     fprintf(fp, "Total written localities: %d\n", written_file_count);
+    fprintf(fp, "Total MIPS: %d\n", file_count * written_file_count * 20);
 
     fclose(fp); 
 
