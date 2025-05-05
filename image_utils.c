@@ -106,6 +106,82 @@ void crear_espejo_vertical(const Image *image, const char *outputPath) {
     fclose(out);
 }
 
+// ---------- GRAYSCALE HORIZONTAL MIRROR ----------
+void convertir_grises_y_espejo_horizontal(const Image *image, const char *outputPath) {
+    FILE *out = fopen(outputPath, "wb");
+    if (!out) {
+        perror("Error creando imagen de salida");
+        return;
+    }
+
+    fwrite(image->header, sizeof(unsigned char), 54, out);
+
+    unsigned char *processedData = malloc(image->data_size);
+
+    for (int i = 0; i < image->height; i++) {
+        for (int j = 0; j < image->width; j++) {
+            int idx = i * image->row_padded + j * 3;
+            unsigned char blue = image->data[idx];
+            unsigned char green = image->data[idx + 1];
+            unsigned char red = image->data[idx + 2];
+            unsigned char gray = (red + green + blue) / 3;
+            processedData[idx] = processedData[idx + 1] = processedData[idx + 2] = gray;
+        }
+    }
+
+    unsigned char *finalData = malloc(image->data_size);
+    for (int i = 0; i < image->height; i++) {
+        for (int j = 0; j < image->width; j++) {
+            int src_idx = i * image->row_padded + j * 3;
+            int dst_idx = i * image->row_padded + (image->width - j - 1) * 3;
+            finalData[dst_idx] = processedData[src_idx];
+            finalData[dst_idx + 1] = processedData[src_idx + 1];
+            finalData[dst_idx + 2] = processedData[src_idx + 2];
+        }
+    }
+
+    fwrite(finalData, sizeof(unsigned char), image->data_size, out);
+    free(processedData);
+    free(finalData);
+    fclose(out);
+}
+
+// ---------- GRAYSCALE VERTICAL MIRROR ----------
+void convertir_grises_y_espejo_vertical(const Image *image, const char *outputPath) {
+    FILE *out = fopen(outputPath, "wb");
+    if (!out) {
+        perror("Error creando imagen de salida");
+        return;
+    }
+
+    fwrite(image->header, sizeof(unsigned char), 54, out);
+
+    unsigned char *processedData = malloc(image->data_size);
+
+    for (int i = 0; i < image->height; i++) {
+        for (int j = 0; j < image->width; j++) {
+            int idx = i * image->row_padded + j * 3;
+            unsigned char blue = image->data[idx];
+            unsigned char green = image->data[idx + 1];
+            unsigned char red = image->data[idx + 2];
+            unsigned char gray = (red + green + blue) / 3;
+            processedData[idx] = processedData[idx + 1] = processedData[idx + 2] = gray;
+        }
+    }
+
+    unsigned char *finalData = malloc(image->data_size);
+    for (int i = 0; i < image->height; i++) {
+        int dst_row = image->height - 1 - i;
+        memcpy(&finalData[dst_row * image->row_padded], &processedData[i * image->row_padded], image->row_padded);
+    }
+
+    fwrite(finalData, sizeof(unsigned char), image->data_size, out);
+    free(processedData);
+    free(finalData);
+    fclose(out);
+}
+
+
 // ---------- BLUR ----------
 void blur(const Image *image, int kernelSize, const char *outputPath) {
     FILE *out = fopen(outputPath, "wb");
