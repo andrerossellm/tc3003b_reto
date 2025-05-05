@@ -3,4 +3,4 @@
 *.vscode
 *.out
 totalLocalitiesScanned.txt
-.bmp
+*.bmp
