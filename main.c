@@ -6,8 +6,8 @@
 #include <errno.h>
 #include <omp.h>
 
-#define NUM_THREADS 8
-#define IMAGE_DIR "images"
+#define NUM_THREADS 10
+#define IMAGE_DIR "source_images"
 
 int main() {
     DIR* FD;
