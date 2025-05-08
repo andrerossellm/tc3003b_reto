@@ -7,7 +7,7 @@
 #include <omp.h>
 
 #define NUM_THREADS 10
-#define IMAGE_DIR "source_images"
+#define IMAGE_DIR "images"
 
 int main() {
     DIR* FD;
@@ -15,7 +15,7 @@ int main() {
     char* filenames[100];
     int file_count = 0;
     int written_file_count = 0;
-    long total_read_pixels = 0;
+    long read_pixels = 0;
 
     // Open the directory
     FD = opendir(IMAGE_DIR);
@@ -58,7 +58,7 @@ int main() {
         }
 
         #pragma omp atomic
-        total_read_pixels += image.width * image.height;
+        read_pixels += image.width * image.height;
     
         // Remove .bmp extension to get base name
         char base_name[256];
@@ -101,17 +101,17 @@ int main() {
         return -1;
     }
 
+    long total_read_pixels = read_pixels * 3;
     long total_written_pixels = total_read_pixels * 6;
 
     fprintf(fp, "Total read images: %d\n", file_count);
     fprintf(fp, "Total written images: %d\n", written_file_count);
     fprintf(fp, "Total read pixels: %ld\n", total_read_pixels);
     fprintf(fp, "Total written pixels: %ld\n", total_written_pixels);
-    fprintf(fp, "Total MIPS: %ld\n", (total_read_pixels + total_written_pixels) * 20);
-
+    const double STOP = omp_get_wtime();
+    fprintf(fp, "Total MIPS: %f\n", ((total_read_pixels + total_written_pixels) * 20) / (STOP - ST));
     fclose(fp); 
 
-    const double STOP = omp_get_wtime();
     printf("Total time = %lf seconds\n", (STOP - ST));
 
     return 0;
