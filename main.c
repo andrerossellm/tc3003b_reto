@@ -15,6 +15,7 @@ int main() {
     char* filenames[100];
     int file_count = 0;
     int written_file_count = 0;
+    long total_read_pixels = 0;
 
     // Open the directory
     FD = opendir(IMAGE_DIR);
@@ -55,6 +56,9 @@ int main() {
             fprintf(stderr, "Thread %d: Failed to load %s\n", omp_get_thread_num(), input_path);
             continue;
         }
+
+        #pragma omp atomic
+        total_read_pixels += image.width * image.height;
     
         // Remove .bmp extension to get base name
         char base_name[256];
@@ -82,6 +86,7 @@ int main() {
         convertir_grises_y_espejo_horizontal(&image, gray_hmirror_out);
         blur(&image, 21, blur_out);
 
+        #pragma omp atomic
         written_file_count += 6;
     
         free_image(&image);
@@ -96,9 +101,13 @@ int main() {
         return -1;
     }
 
-    fprintf(fp, "Total read localities: %d\n", file_count);
-    fprintf(fp, "Total written localities: %d\n", written_file_count);
-    fprintf(fp, "Total MIPS: %d\n", (file_count + written_file_count) * 20);
+    long total_written_pixels = total_read_pixels * 6;
+
+    fprintf(fp, "Total read images: %d\n", file_count);
+    fprintf(fp, "Total written images: %d\n", written_file_count);
+    fprintf(fp, "Total read pixels: %ld\n", total_read_pixels);
+    fprintf(fp, "Total written pixels: %ld\n", total_written_pixels);
+    fprintf(fp, "Total MIPS: %ld\n", (total_read_pixels + total_written_pixels) * 20);
 
     fclose(fp); 
 
