@@ -7,7 +7,7 @@
 #include <omp.h>
 
 #define NUM_THREADS 10
-#define IMAGE_DIR "images"
+#define IMAGE_DIR "source_images"
 
 int main() {
     DIR* FD;
@@ -84,7 +84,7 @@ int main() {
         crear_espejo_vertical(&image, vmirror_out);
         convertir_grises_y_espejo_vertical(&image, gray_vmirror_out);
         convertir_grises_y_espejo_horizontal(&image, gray_hmirror_out);
-        blur(&image, 21, blur_out);
+        blur(&image, 55, blur_out);
 
         #pragma omp atomic
         written_file_count += 6;
@@ -106,8 +106,9 @@ int main() {
 
     fprintf(fp, "Total read images: %d\n", file_count);
     fprintf(fp, "Total written images: %d\n", written_file_count);
-    fprintf(fp, "Total read pixels: %ld\n", total_read_pixels);
-    fprintf(fp, "Total written pixels: %ld\n", total_written_pixels);
+    fprintf(fp, "Total read pixels: %ld\n", read_pixels);
+    fprintf(fp, "Total written pixels: %ld\n", read_pixels * 6);
+    fprintf(fp, "Pixels per second: %ld\n", ((read_pixels + (read_pixels * 6)) / (STOP - ST)));
     const double STOP = omp_get_wtime();
     fprintf(fp, "Total MIPS: %f\n", ((total_read_pixels + total_written_pixels) * 20) / (STOP - ST));
     fclose(fp); 
