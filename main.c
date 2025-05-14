@@ -109,7 +109,7 @@ int main() {
     fprintf(fp, "Total read pixels: %ld\n", read_pixels);
     fprintf(fp, "Total written pixels: %ld\n", read_pixels * 6);
     const double STOP = omp_get_wtime();
-    fprintf(fp, "Pixels per second: %f", ((read_pixels + (read_pixels * 6)) / (STOP - ST)));
+    fprintf(fp, "Pixels per second: %f\n", ((read_pixels + (read_pixels * 6)) / (STOP - ST)));
     fprintf(fp, "Total MIPS: %f\n", ((total_read_pixels + total_written_pixels) * 20) / (STOP - ST));
     fclose(fp); 
 
