@@ -13,7 +13,7 @@
 #define TAG_DONE 2
 
 
-#define NUM_THREADS 4
+#define NUM_THREADS 10
 
 void process_image(const char *input_path) {
     omp_set_num_threads(NUM_THREADS);
@@ -130,7 +130,9 @@ int main(int argc, char **argv) {
             MPI_Status status;
             MPI_Recv(filename, 256, MPI_CHAR, 0, TAG_FILENAME, MPI_COMM_WORLD, &status);
 
-            if (status.MPI_TAG != TAG_FILENAME || status._count == 0) break;
+            int count;
+            MPI_Get_count(&status, MPI_CHAR, &count);
+            if (status.MPI_TAG != TAG_FILENAME || count == 0) break;
 
             char filepath[512];
             snprintf(filepath, sizeof(filepath), "%s/%s", IMAGE_DIR, filename);
