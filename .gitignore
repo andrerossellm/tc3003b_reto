@@ -4,3 +4,5 @@
 *.out
 *.bmp
 totalLocalitiesScanned.txt
+dist
+build
