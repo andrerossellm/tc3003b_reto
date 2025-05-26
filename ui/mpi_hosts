@@ -1,0 +1,6 @@
+# mpi_hosts
+# Master machine (M2)
+ubuntuDeRamiro slots=1 executable=/Users/youruser/mpi_execs/image_processor_arm
+
+# Slave machine (Intel)
+ubuntuAdrian slots=4 executable=/home/youruser/mpi_execs/image_processor_intel

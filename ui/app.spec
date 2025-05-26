@@ -6,7 +6,7 @@ a = Analysis(
     ['gui.py'],
     pathex=[],
     binaries=[],
-    datas=[('images/prices.png', 'images'), ('totalLocalitiesScanned.txt', '.')],
+    datas=[('images/prices.png', 'images'), ('totalLocalitiesScanned.txt', '.'), ('intel.out', '.')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

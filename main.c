@@ -6,12 +6,12 @@
 #include <errno.h>
 #include <mpi.h>
 #include <omp.h>
+#include <sys/stat.h> 
 
-#define IMAGE_DIR "images"
 #define MAX_FILES 100
 #define TAG_FILENAME 1
 #define TAG_DONE 2
-#define NUM_THREADS 10
+#define NUM_THREADS 10 
 
 long local_read_pixels = 0;
 long local_written_images = 0;
@@ -31,8 +31,21 @@ void process_image(const char *input_path) {
     local_read_pixels += image_pixels;
 
     char base_name[256];
-    strncpy(base_name, strrchr(input_path, '/') + 1, sizeof(base_name));
+    const char *last_slash = strrchr(input_path, '/');
+    #ifdef _WIN32
+        const char *last_backslash = strrchr(input_path, '\\');
+        if (last_backslash && (!last_slash || last_backslash > last_slash)) {
+            last_slash = last_backslash;
+        }
+    #endif
+
+    if (last_slash) {
+        strncpy(base_name, last_slash + 1, sizeof(base_name) - 1);
+    } else {
+        strncpy(base_name, input_path, sizeof(base_name) - 1);
+    }
     base_name[sizeof(base_name) - 1] = '\0';
+
     char *ext = strrchr(base_name, '.');
     if (ext) *ext = '\0';
 
@@ -69,7 +82,7 @@ void process_image(const char *input_path) {
     local_written_images += 6;
 
     free_image(&image);
-    printf("Processed %s\n", input_path);
+    printf("Processed %s\n", input_path); 
 }
 
 int main(int argc, char **argv) {
@@ -77,6 +90,25 @@ int main(int argc, char **argv) {
     MPI_Init(&argc, &argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+    if (argc < 2) {
+        if (rank == 0) {
+            fprintf(stderr, "Usage: %s <image_directory>\n", argv[0]);
+        }
+        MPI_Finalize();
+        return 1;
+    }
+
+    const char *image_directory = argv[1]; 
+
+    if (rank == 0) {
+        #ifdef _WIN32
+            _mkdir("output");
+        #else
+            mkdir("output", 0777); 
+        #endif
+    }
+    MPI_Barrier(MPI_COMM_WORLD); 
 
     double start_time = MPI_Wtime();
 
@@ -91,9 +123,9 @@ int main(int argc, char **argv) {
         char *filenames[MAX_FILES];
         int file_count = 0;
 
-        FD = opendir(IMAGE_DIR);
+        FD = opendir(image_directory); 
         if (FD == NULL) {
-            fprintf(stderr, "Error: Failed to open directory '%s' - %s\n", IMAGE_DIR, strerror(errno));
+            fprintf(stderr, "Error: Failed to open directory '%s' - %s\n", image_directory, strerror(errno));
             MPI_Abort(MPI_COMM_WORLD, 1);
         }
 
@@ -111,13 +143,11 @@ int main(int argc, char **argv) {
         total_images = file_count;
         int next_file = 0;
 
-        // Initial distribution
         for (int i = 1; i < size && next_file < file_count; i++) {
             MPI_Send(filenames[next_file], strlen(filenames[next_file]) + 1, MPI_CHAR, i, TAG_FILENAME, MPI_COMM_WORLD);
             next_file++;
         }
 
-        // Send remaining files
         while (next_file < file_count) {
             char done_signal[1];
             MPI_Status status;
@@ -128,7 +158,6 @@ int main(int argc, char **argv) {
             next_file++;
         }
 
-        // Stop all workers
         for (int i = 1; i < size; i++) {
             MPI_Send(NULL, 0, MPI_CHAR, i, TAG_FILENAME, MPI_COMM_WORLD);
         }
@@ -149,28 +178,25 @@ int main(int argc, char **argv) {
 
         double stop_time = MPI_Wtime();
         double elapsed = stop_time - start_time;
-        long written_pixels = total_read_pixels * 6;
-        long total_data = (total_read_pixels + written_pixels) * 3;
+        long written_pixels = total_read_pixels * 6; 
+        long total_data_bytes = (total_read_pixels * 3) + (written_pixels * 3);
+
 
         FILE *fp = fopen("totalLocalitiesScanned.txt", "w");
         if (!fp) {
-            printf("Error opening output file\n");
-            MPI_Finalize();
-            return 1;
+            printf("Error opening output file totalLocalitiesScanned.txt\n");
+            fprintf(stderr, "Error: Could not open totalLocalitiesScanned.txt for writing.\n");
+        } else {
+            fprintf(fp, "Total time: %f seconds\n", elapsed);
+            fprintf(fp, "Total read images: %d\n", total_images);
+            fprintf(fp, "Total written images: %ld\n", total_written_images);
+            fprintf(fp, "Total read pixels: %ld\n", total_read_pixels);
+            fprintf(fp, "Total written pixels: %ld\n", written_pixels);
+            fprintf(fp, "Pixels processed per second: %.2e\n", (double)(total_read_pixels + written_pixels) / elapsed);
+            fprintf(fp, "Data processed per second (bytes/sec): %.2e\n", (double)total_data_bytes / elapsed);
+            fprintf(fp, "Estimated Total MIPS: %.2e\n", ((double)total_data_bytes * 20) / (elapsed * 1e6)); // Adjusted to be in MIPS
+            fclose(fp);
         }
-
-        fprintf(fp, "Total read images: %d\n", total_images);
-        fprintf(fp, "Total written images: %ld\n", total_written_images);
-        fprintf(fp, "Total read localities: %e\n", ((double)total_read_pixels * 3) / elapsed);
-        fprintf(fp, "Total written localities: %e\n", ((double)written_pixels * 3) / elapsed);
-        fprintf(fp, "Total localities: %e\n", ((double)total_read_pixels * 3 + total_written_images * 3) / elapsed);
-        fprintf(fp, "Total read pixels: %e\n", (double)total_read_pixels);
-        fprintf(fp, "Total written pixels: %e\n", (double)written_pixels);
-        fprintf(fp, "Pixels per second: %e\n", ((double)(total_read_pixels + written_pixels)) / elapsed);
-        fprintf(fp, "Total MIPS: %e\n", ((double)total_data * 20) / elapsed);
-        fclose(fp);
-
-        printf("Total time = %lf seconds\n", elapsed);
 
     } else {
         // SLAVE PROCESS
@@ -181,18 +207,16 @@ int main(int argc, char **argv) {
 
             int count;
             MPI_Get_count(&status, MPI_CHAR, &count);
-            if (status.MPI_TAG != TAG_FILENAME || count == 0) break;
+            if (count == 0) break;
 
             char filepath[512];
-            snprintf(filepath, sizeof(filepath), "%s/%s", IMAGE_DIR, filename);
+            snprintf(filepath, sizeof(filepath), "%s/%s", image_directory, filename);
             process_image(filepath);
 
-            // Notify master done
-            char done_signal = 'D';
+            char done_signal = 'D'; 
             MPI_Send(&done_signal, 1, MPI_CHAR, 0, TAG_DONE, MPI_COMM_WORLD);
         }
 
-        // Send local stats to master
         MPI_Send(&local_read_pixels, 1, MPI_LONG, 0, 0, MPI_COMM_WORLD);
         MPI_Send(&local_written_images, 1, MPI_LONG, 0, 0, MPI_COMM_WORLD);
     }
