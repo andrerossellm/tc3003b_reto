@@ -3,9 +3,10 @@ import os
 import subprocess
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QLabel,
-    QPushButton, QSizePolicy, QMenuBar, QMenu, QAction, QMessageBox, QScrollArea
+    QPushButton, QSizePolicy, QMenuBar, QMenu, QAction, QMessageBox, QScrollArea,
+    QProgressBar 
 )
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QProcess 
 from PyQt5.QtGui import QCursor, QPixmap
 
 
@@ -44,6 +45,7 @@ class ProcessImagesApp(QWidget):
 
         self.last_folder_path = None
         self.original_pixmap = None
+        self.total_images_to_process = 0 
 
         # Menu bar
         menu_bar = QMenuBar(self)
@@ -65,6 +67,26 @@ class ProcessImagesApp(QWidget):
         self.filename_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.filename_label.setFixedHeight(40)
         self.filename_label.setVisible(False)
+
+        # New: Progress Bar
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setMinimum(0)
+        self.progress_bar.setMaximum(100)
+        self.progress_bar.setValue(0)
+        self.progress_bar.setStyleSheet("""
+            QProgressBar {
+                border: 2px solid #a1887f;
+                border-radius: 5px;
+                background-color: #e0e0e0;
+                text-align: center;
+                color: #333333;
+            }
+            QProgressBar::chunk {
+                background-color: #a1887f;
+                width: 10px;
+            }
+        """)
+        self.progress_bar.setVisible(False)
 
         self.run_image_processing_button = QPushButton("Process Images")
         self.run_image_processing_button.clicked.connect(
@@ -94,143 +116,204 @@ class ProcessImagesApp(QWidget):
 
         self.layout.addWidget(self.drop_zone)
         self.layout.addWidget(self.filename_label)
+        self.layout.addWidget(self.progress_bar) # Add progress bar to layout
         self.layout.addWidget(self.completion_label)
         self.layout.addWidget(self.run_image_processing_button)
+
+        self.c_process = QProcess(self)
+        self.c_process.readyReadStandardOutput.connect(self.read_c_output)
+        self.c_process.readyReadStandardError.connect(self.read_c_error)
+        self.c_process.finished.connect(self.c_process_finished)
 
     def process_folder(self, folderPath):
         self.last_folder_path = folderPath
         self.run_image_processing_button.setVisible(True)
         self.filename_label.setVisible(True)
         self.completion_label.setVisible(False)
+        self.progress_bar.setVisible(False) 
 
         bmp_images = [f for f in os.listdir(folderPath) if f.lower().endswith(".bmp")]
+        self.total_images_to_process = len(bmp_images) 
+
         if bmp_images:
-            output_text = "Images ready to process\n"
+            output_text = "Images ready to process:\n" + "\n".join(bmp_images[:5])
+            if len(bmp_images) > 5:
+                output_text += "\n..."
+            output_text += f"\nTotal: {len(bmp_images)} images."
         else:
             output_text = "No .bmp images found in the folder."
 
         self.filename_label.setText(output_text)
 
     def execute_c_code(self, folderPath):
-        self.completion_label.setText("Processing images...")
-        self.completion_label.setVisible(True)
-        self.filename_label.setVisible(False)
-        self.drop_zone.setVisible(False)
-        self.run_image_processing_button.setEnabled(False)
+            if not folderPath:
+                QMessageBox.warning(self, "Warning", "Please drop a folder first.")
+                return
 
-        mpi_master_executable = "intel.out"
-        mpi_slave_executable = "/home/youruser/mpi_execs/image_processor_intel"
-        hosts_file = "ui/mpi_hosts"
+            bmp_images = [f for f in os.listdir(folderPath) if f.lower().endswith(".bmp")]
+            if not bmp_images:
+                QMessageBox.warning(self, "Warning", "No .bmp images found in the selected folder.")
+                return
 
-        if getattr(sys, 'frozen', False):
-            base_dir = sys._MEIPASS
-        else:
-            base_dir = os.path.dirname(os.path.abspath(__file__))
-        mpi_master_executable = os.path.join(base_dir, mpi_master_executable)
+            self.completion_label.setText("Processing images...")
+            self.completion_label.setVisible(True)
+            self.filename_label.setVisible(False)
+            self.drop_zone.setVisible(False)
+            self.run_image_processing_button.setVisible(False)  
+            self.run_image_processing_button.setEnabled(False)
+            self.progress_bar.setValue(0)
+            self.progress_bar.setVisible(True) 
 
-        output_dir = os.path.join(os.getcwd(), "output")
-        os.makedirs(output_dir, exist_ok=True)
+            mpi_master_executable = "intel.out"
+            # mpi_slave_executable = "/home/youruser/mpi_execs/image_processor_intel" # Not used directly in Python
+            # hosts_file = "ui/mpi_hosts" # Not used directly in Python
 
-        try:
-            command = ('mpirun', '-n', '4', mpi_master_executable, folderPath)
-            process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-            stdout, stderr = process.communicate()
+            if getattr(sys, 'frozen', False):
+                base_dir = sys._MEIPASS
+            else:
+                base_dir = os.path.dirname(os.path.abspath(__file__))
+            mpi_master_executable_path = os.path.join(base_dir, mpi_master_executable)
 
-            if process.returncode == 0:
+            output_dir = os.path.join(os.getcwd(), "output")
+            os.makedirs(output_dir, exist_ok=True)
+
+            try:
+                command = ['mpirun', '-n', '4', mpi_master_executable_path, folderPath]
+                self.c_process.start(command[0], command[1:])
+                if not self.c_process.waitForStarted(5000): 
+                        raise Exception(f"Failed to start MPI process: {self.c_process.errorString()}")
+
+            except FileNotFoundError:
+                QMessageBox.critical(self, "Error", "mpirun command not found. Make sure Open MPI is installed and in your PATH.")
+                self.c_process_finished(1) 
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"An unexpected error occurred: {e}")
+                self.c_process_finished(1) 
+
+    def read_c_output(self):
+        while self.c_process.canReadLine():
+            line = str(self.c_process.readLine(), 'utf-8').strip()
+            # print(f"C Output: {line}") # For debugging
+
+            if line.startswith("PROGRESS:"):
+                try:
+                    parts = line.split(":")
+                    if len(parts) > 1:
+                        progress_data = parts[1].strip().split("/")
+                        if len(progress_data) == 2:
+                            processed = int(progress_data[0])
+                            total = int(progress_data[1])
+                            if total > 0:
+                                percentage = int((processed / total) * 100)
+                                self.progress_bar.setValue(percentage)
+                                self.completion_label.setText(f"Processing images... {processed}/{total} ({percentage}%)")
+                            else:
+                                self.progress_bar.setValue(0)
+                                self.completion_label.setText("Processing images...")
+                except ValueError:
+                    print(f"Could not parse progress line: {line}")
+            else:
+                # You can choose to display other C code output in a debug console or a log window
+                pass
+
+    def read_c_error(self):
+        error_output = str(self.c_process.readAllStandardError(), 'utf-8').strip()
+        if error_output:
+            print(f"C Error: {error_output}")
+
+    def c_process_finished(self, exit_code, exit_status=QProcess.NormalExit):
+            if exit_code == 0:
                 self.completion_label.setText("Processing complete. Check output folder at ./output")
-                print("C Code Output:\n", stdout)
+                self.progress_bar.setValue(100)
             else:
                 self.completion_label.setText("Processing failed. See console for details.")
-                print("C Code Error:\n", stderr)
+                self.progress_bar.setValue(0) # Reset or indicate failure
 
-        except FileNotFoundError:
-            QMessageBox.critical(self, "Error", "mpiexec command not found. Make sure Open MPI is installed and in your PATH.")
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"An unexpected error occurred: {e}")
+            self.run_image_processing_button.setText("Restart")
+            self.run_image_processing_button.setEnabled(True)
+            self.run_image_processing_button.setVisible(True) 
+            self.run_image_processing_button.clicked.disconnect()
+            self.run_image_processing_button.clicked.connect(self.reset_ui_after_processing)
 
-        self.run_image_processing_button.setText("Restart")
-        self.run_image_processing_button.setEnabled(True)
-        self.run_image_processing_button.clicked.disconnect()
-        self.run_image_processing_button.clicked.connect(self.reset_ui_after_processing)
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+            txt_files = [f for f in os.listdir(base_dir) if f.lower().endswith(".txt")]
 
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-        txt_files = [f for f in os.listdir(base_dir) if f.lower().endswith(".txt")]
+            if hasattr(self, "text_scroll_area"):
+                self.text_scroll_area.deleteLater()
+            if hasattr(self, "text_display_label"):
+                self.text_display_label.deleteLater()
+            if hasattr(self, "image_scroll_area"):
+                self.image_scroll_area.deleteLater()
 
-        if hasattr(self, "text_scroll_area"):
-            self.text_scroll_area.deleteLater()
-        if hasattr(self, "text_display_label"):
-            self.text_display_label.deleteLater()
-        if hasattr(self, "image_scroll_area"):
-            self.image_scroll_area.deleteLater()
+            if txt_files:
+                txt_file_path = os.path.join(base_dir, txt_files[0])
+                with open(txt_file_path, 'r') as file:
+                    file_content = file.read()
 
-        if txt_files:
-            txt_file_path = os.path.join(base_dir, txt_files[0])
-            with open(txt_file_path, 'r') as file:
-                file_content = file.read()
+                self.text_display_label = QLabel(file_content)
+                self.text_display_label.setAlignment(Qt.AlignTop)
+                self.text_display_label.setStyleSheet("font-size: 14px; color: #365b6d; padding: 5px;")
+                self.text_display_label.setWordWrap(True)
 
-            self.text_display_label = QLabel(file_content)
-            self.text_display_label.setAlignment(Qt.AlignTop)
-            self.text_display_label.setStyleSheet("font-size: 14px; color: #365b6d; padding: 5px;")
-            self.text_display_label.setWordWrap(True)
-
-            self.text_scroll_area = QScrollArea()
-            self.text_scroll_area.setWidgetResizable(True)
-            self.text_scroll_area.setStyleSheet("background-color: #f7efdf; border: none;")
-            self.text_scroll_area.setWidget(self.text_display_label)
-            self.text_scroll_area.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-
-            self.layout.insertWidget(
-                self.layout.indexOf(self.run_image_processing_button),
-                self.text_scroll_area,
-                stretch=1
-            )
-        else:
-            self.text_display_label = QLabel("No .txt file found next to gui.py")
-            self.text_display_label.setAlignment(Qt.AlignCenter)
-            self.text_display_label.setStyleSheet("font-size: 14px; color: black; padding: 5px;")
-            self.layout.insertWidget(
-                self.layout.indexOf(self.run_image_processing_button),
-                self.text_display_label
-            )
-
-        image_path = os.path.join(base_dir, "images", "prices.png")
-        if os.path.exists(image_path):
-            self.original_pixmap = QPixmap(image_path)
-            if self.original_pixmap.isNull():
-                self.image_label = QLabel("Failed to load image.")
-            else:
-                self.image_label = QLabel()
-                self.image_label.setAlignment(Qt.AlignCenter)
-                self.image_label.setScaledContents(False)
-                self.image_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-
-                self.update_image_pixmap()
-
-                self.image_scroll_area = QScrollArea()
-                self.image_scroll_area.setWidgetResizable(True)
-                self.image_scroll_area.setStyleSheet("background-color: #f7efdf; border: none;")
-                self.image_scroll_area.setWidget(self.image_label)
-                self.image_scroll_area.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-                self.image_scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-                self.image_scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+                self.text_scroll_area = QScrollArea()
+                self.text_scroll_area.setWidgetResizable(True)
+                self.text_scroll_area.setStyleSheet("background-color: #f7efdf; border: none;")
+                self.text_scroll_area.setWidget(self.text_display_label)
+                self.text_scroll_area.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
                 self.layout.insertWidget(
                     self.layout.indexOf(self.run_image_processing_button),
-                    self.image_scroll_area,
-                    stretch=2
+                    self.text_scroll_area,
+                    stretch=1
                 )
-        else:
-            self.image_label = QLabel("Image not found at: " + image_path)
-            self.image_label.setAlignment(Qt.AlignCenter)
-            self.layout.insertWidget(
-                self.layout.indexOf(self.run_image_processing_button),
-                self.image_label
-            )
+            else:
+                self.text_display_label = QLabel("No .txt file found next to gui.py")
+                self.text_display_label.setAlignment(Qt.AlignCenter)
+                self.text_display_label.setStyleSheet("font-size: 14px; color: black; padding: 5px;")
+                self.layout.insertWidget(
+                    self.layout.indexOf(self.run_image_processing_button),
+                    self.text_display_label
+                )
+
+            image_path = os.path.join(base_dir, "images", "prices.png")
+            if os.path.exists(image_path):
+                self.original_pixmap = QPixmap(image_path)
+                if self.original_pixmap.isNull():
+                    self.image_label = QLabel("Failed to load image.")
+                else:
+                    self.image_label = QLabel()
+                    self.image_label.setAlignment(Qt.AlignCenter)
+                    self.image_label.setScaledContents(False)
+                    self.image_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+
+                    self.update_image_pixmap()
+
+                    self.image_scroll_area = QScrollArea()
+                    self.image_scroll_area.setWidgetResizable(True)
+                    self.image_scroll_area.setStyleSheet("background-color: #f7efdf; border: none;")
+                    self.image_scroll_area.setWidget(self.image_label)
+                    self.image_scroll_area.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+                    self.image_scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+                    self.image_scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+
+                    self.layout.insertWidget(
+                        self.layout.indexOf(self.run_image_processing_button),
+                        self.image_scroll_area,
+                        stretch=2
+                    )
+            else:
+                self.image_label = QLabel("Image not found at: " + image_path)
+                self.image_label.setAlignment(Qt.AlignCenter)
+                self.layout.insertWidget(
+                    self.layout.indexOf(self.run_image_processing_button),
+                    self.image_label
+                )
 
     def reset_ui_after_processing(self):
         self.filename_label.setVisible(False)
         self.completion_label.setVisible(False)
         self.run_image_processing_button.setVisible(False)
+        self.progress_bar.setVisible(False) 
 
         if hasattr(self, "text_scroll_area"):
             self.text_scroll_area.deleteLater()
