@@ -11,9 +11,10 @@
 #define MAX_FILES 100
 #define TAG_FILENAME 1
 #define TAG_DONE 2
-
-
 #define NUM_THREADS 10
+
+long local_read_pixels = 0;
+long local_written_images = 0;
 
 void process_image(const char *input_path) {
     omp_set_num_threads(NUM_THREADS);
@@ -23,6 +24,11 @@ void process_image(const char *input_path) {
         fprintf(stderr, "Failed to load %s\n", input_path);
         return;
     }
+
+    long image_pixels = image.width * image.height;
+
+    #pragma omp atomic
+    local_read_pixels += image_pixels;
 
     char base_name[256];
     strncpy(base_name, strrchr(input_path, '/') + 1, sizeof(base_name));
@@ -59,6 +65,9 @@ void process_image(const char *input_path) {
         blur(&image, 21, blur_out);
     }
 
+    #pragma omp atomic
+    local_written_images += 6;
+
     free_image(&image);
     printf("Processed %s\n", input_path);
 }
@@ -68,6 +77,12 @@ int main(int argc, char **argv) {
     MPI_Init(&argc, &argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+    double start_time = MPI_Wtime();
+
+    int total_images = 0;
+    long total_read_pixels = 0;
+    long total_written_images = 0;
 
     if (rank == 0) {
         // MASTER PROCESS
@@ -93,8 +108,8 @@ int main(int argc, char **argv) {
         }
         closedir(FD);
 
+        total_images = file_count;
         int next_file = 0;
-        int working = size - 1;
 
         // Initial distribution
         for (int i = 1; i < size && next_file < file_count; i++) {
@@ -113,7 +128,7 @@ int main(int argc, char **argv) {
             next_file++;
         }
 
-        // Tell all slaves to stop
+        // Stop all workers
         for (int i = 1; i < size; i++) {
             MPI_Send(NULL, 0, MPI_CHAR, i, TAG_FILENAME, MPI_COMM_WORLD);
         }
@@ -122,6 +137,40 @@ int main(int argc, char **argv) {
         for (int i = 0; i < file_count; i++) {
             free(filenames[i]);
         }
+
+        // Collect stats from slaves
+        for (int i = 1; i < size; i++) {
+            long slave_pixels, slave_outputs;
+            MPI_Recv(&slave_pixels, 1, MPI_LONG, i, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            MPI_Recv(&slave_outputs, 1, MPI_LONG, i, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            total_read_pixels += slave_pixels;
+            total_written_images += slave_outputs;
+        }
+
+        double stop_time = MPI_Wtime();
+        double elapsed = stop_time - start_time;
+        long written_pixels = total_read_pixels * 6;
+        long total_data = (total_read_pixels + written_pixels) * 3;
+
+        FILE *fp = fopen("totalLocalitiesScanned.txt", "w");
+        if (!fp) {
+            printf("Error opening output file\n");
+            MPI_Finalize();
+            return 1;
+        }
+
+        fprintf(fp, "Total read images: %d\n", total_images);
+        fprintf(fp, "Total written images: %ld\n", total_written_images);
+        fprintf(fp, "Total read localities: %e\n", ((double)total_read_pixels * 3) / elapsed);
+        fprintf(fp, "Total written localities: %e\n", ((double)written_pixels * 3) / elapsed);
+        fprintf(fp, "Total localities: %e\n", ((double)total_read_pixels * 3 + total_written_images * 3) / elapsed);
+        fprintf(fp, "Total read pixels: %e\n", (double)total_read_pixels);
+        fprintf(fp, "Total written pixels: %e\n", (double)written_pixels);
+        fprintf(fp, "Pixels per second: %e\n", ((double)(total_read_pixels + written_pixels)) / elapsed);
+        fprintf(fp, "Total MIPS: %e\n", ((double)total_data * 20) / elapsed);
+        fclose(fp);
+
+        printf("Total time = %lf seconds\n", elapsed);
 
     } else {
         // SLAVE PROCESS
@@ -138,10 +187,14 @@ int main(int argc, char **argv) {
             snprintf(filepath, sizeof(filepath), "%s/%s", IMAGE_DIR, filename);
             process_image(filepath);
 
-            // Notify master that this process is ready for another task
+            // Notify master done
             char done_signal = 'D';
             MPI_Send(&done_signal, 1, MPI_CHAR, 0, TAG_DONE, MPI_COMM_WORLD);
         }
+
+        // Send local stats to master
+        MPI_Send(&local_read_pixels, 1, MPI_LONG, 0, 0, MPI_COMM_WORLD);
+        MPI_Send(&local_written_images, 1, MPI_LONG, 0, 0, MPI_COMM_WORLD);
     }
 
     MPI_Finalize();
