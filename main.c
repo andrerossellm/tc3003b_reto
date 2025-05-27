@@ -140,7 +140,7 @@ int main(int argc, char **argv) {
 
         total_images = file_count;
         int next_file = 0;
-        int processed_count = 0; /
+        int processed_count = 0; 
 
         for (int i = 1; i < size && next_file < file_count; i++) {
             MPI_Send(filenames[next_file], strlen(filenames[next_file]) + 1, MPI_CHAR, i, TAG_FILENAME, MPI_COMM_WORLD);

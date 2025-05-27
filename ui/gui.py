@@ -8,6 +8,7 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt, QProcess 
 from PyQt5.QtGui import QCursor, QPixmap
+import platform
 
 
 class DropZone(QLabel):
@@ -164,7 +165,15 @@ class ProcessImagesApp(QWidget):
             self.progress_bar.setValue(0)
             self.progress_bar.setVisible(True) 
 
-            mpi_master_executable = "intel.out"
+            arch = platform.machine()
+
+            if arch == "x86_64":
+                mpi_master_executable = "x86"
+            elif arch == "aarch64":
+                mpi_master_executable = "arm.out"
+            else:
+                raise RuntimeError(f"Unsupported architecture: {arch}")
+
             # mpi_slave_executable = "/home/youruser/mpi_execs/image_processor_intel" # Not used directly in Python
             # hosts_file = "ui/mpi_hosts" # Not used directly in Python
 
