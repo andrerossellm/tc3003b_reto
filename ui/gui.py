@@ -169,8 +169,8 @@ class ProcessImagesApp(QWidget):
                 base_dir = sys._MEIPASS
             else:
                 base_dir = os.path.dirname(os.path.abspath(__file__))
-            machinefile_path = os.path.join(base_dir, './machinefile')
-            wrapper_path = os.path.join(base_dir, './wrapper.sh')
+            machinefile_path = os.path.join(base_dir, 'machinefile')
+            wrapper_path = os.path.join(base_dir, 'wrapper.sh')
 
             output_dir = os.path.join(os.getcwd(), "output")
             os.makedirs(output_dir, exist_ok=True)
