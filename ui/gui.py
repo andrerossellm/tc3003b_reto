@@ -165,14 +165,12 @@ class ProcessImagesApp(QWidget):
             self.progress_bar.setValue(0)
             self.progress_bar.setVisible(True) 
 
-            machinefile_path = "./machinefile"
-            wrapper_path = "./wrapper.sh"
-
             if getattr(sys, 'frozen', False):
                 base_dir = sys._MEIPASS
             else:
                 base_dir = os.path.dirname(os.path.abspath(__file__))
-            mpi_master_executable_path = os.path.join(base_dir, mpi_master_executable)
+            machinefile_path = os.path.join(base_dir, './machinefile')
+            wrapper_path = os.path.join(base_dir, './wrapper.sh')
 
             output_dir = os.path.join(os.getcwd(), "output")
             os.makedirs(output_dir, exist_ok=True)
