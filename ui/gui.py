@@ -179,7 +179,7 @@ class ProcessImagesApp(QWidget):
 
                 command = ["mpiexec", "-n", "8", "-f", machinefile_path, wrapper_path, folderPath ]
 
-                self.c_process.start(command, check=True)
+                self.c_process.start(command[0], command[1:])
                 if not self.c_process.waitForStarted(5000): 
                         raise Exception(f"Failed to start MPI process: {self.c_process.errorString()}")
 
