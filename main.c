@@ -50,12 +50,12 @@ void process_image(const char *input_path) {
     if (ext) *ext = '\0';
 
     char gray_out[512], hmirror_out[512], vmirror_out[512], blur_out[512], gray_hmirror_out[512], gray_vmirror_out[512];
-    snprintf(gray_out, sizeof(gray_out), "output/%s_gray.bmp", base_name);
-    snprintf(hmirror_out, sizeof(hmirror_out), "output/%s_hmirror.bmp", base_name);
-    snprintf(vmirror_out, sizeof(vmirror_out), "output/%s_vmirror.bmp", base_name);
-    snprintf(gray_vmirror_out, sizeof(gray_vmirror_out), "output/%s_gray_vmirror.bmp", base_name);
-    snprintf(gray_hmirror_out, sizeof(gray_hmirror_out), "output/%s_gray_hmirror.bmp", base_name);
-    snprintf(blur_out, sizeof(blur_out), "output/%s_blur.bmp", base_name);
+    snprintf(gray_out, sizeof(gray_out), "/mirror/loco/output/%s_gray.bmp", base_name);
+    snprintf(hmirror_out, sizeof(hmirror_out), "/mirror/loco/output/%s_hmirror.bmp", base_name);
+    snprintf(vmirror_out, sizeof(vmirror_out), "/mirror/loco/output/%s_vmirror.bmp", base_name);
+    snprintf(gray_vmirror_out, sizeof(gray_vmirror_out), "/mirror/loco/output/%s_gray_vmirror.bmp", base_name);
+    snprintf(gray_hmirror_out, sizeof(gray_hmirror_out), "/mirror/loco/output/%s_gray_hmirror.bmp", base_name);
+    snprintf(blur_out, sizeof(blur_out), "/mirror/loco/output/%s_blur.bmp", base_name);
 
     #pragma omp parallel sections
     {
@@ -102,9 +102,9 @@ int main(int argc, char **argv) {
 
     if (rank == 0) {
         #ifdef _WIN32
-            _mkdir("output");
+            _mkdir("/mirror/loco/output");
         #else
-            mkdir("output", 0777);
+            mkdir("/mirror/loco/output", 0777);
         #endif
     }
     MPI_Barrier(MPI_COMM_WORLD);
