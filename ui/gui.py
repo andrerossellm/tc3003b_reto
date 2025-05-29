@@ -4,7 +4,7 @@ import subprocess
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QLabel,
     QPushButton, QSizePolicy, QMenuBar, QMenu, QAction, QMessageBox, QScrollArea,
-    QProgressBar 
+    QProgressBar, QFileDialog
 )
 from PyQt5.QtCore import Qt, QProcess 
 from PyQt5.QtGui import QCursor, QPixmap
@@ -13,11 +13,12 @@ import platform
 
 class DropZone(QLabel):
     def __init__(self, on_folder_dropped):
-        super().__init__('Drop Folder With .bmp Images Here')
+        super().__init__('Drop Folder With .bmp Images Here\n(Click to browse)')
         self.setAcceptDrops(True)
         self.setAlignment(Qt.AlignCenter)
         self.setStyleSheet("border: 2px dashed #888; padding: 40px; color: #333333;")
         self.on_folder_dropped = on_folder_dropped
+        self.setCursor(QCursor(Qt.PointingHandCursor))  # Indicate it's clickable
 
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls():
@@ -33,6 +34,11 @@ class DropZone(QLabel):
                 break
         event.acceptProposedAction()
 
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            folder_path = QFileDialog.getExistingDirectory(self, "Select Folder")
+            if folder_path:
+                self.on_folder_dropped(folder_path)
 
 class ProcessImagesApp(QWidget):
     def __init__(self):
